@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class BatteryAnalyticsChart extends ChartWidget
 {
+    protected static ?string $pollingInterval = null;
+
     public function getHeading(): string
     {
         return __('filament.widgets.battery');

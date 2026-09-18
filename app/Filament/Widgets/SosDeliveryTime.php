@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class SosDeliveryTime extends BaseWidget
 {
+    protected static ?string $pollingInterval = null;
+
     protected function getStats(): array
     {
         $actor = Filament::auth()->user();

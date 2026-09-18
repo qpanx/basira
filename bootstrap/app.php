@@ -11,7 +11,6 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 /**
  * Laravel 11.56 loads its framework fallback database config before the
@@ -47,20 +46,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
-
-        $exceptions->render(function (HttpExceptionInterface $exception, Request $request): ?Response {
-            if ($exception->getStatusCode() !== 419 || ! $request->hasHeader('X-Livewire')) {
-                return null;
-            }
-
-            $referer = $request->headers->get('referer');
-            $applicationUrl = url('/');
-            $redirectUrl = is_string($referer) && str_starts_with($referer, $applicationUrl)
-                ? $referer
-                : url('/admin/login');
-
-            return redirect()->to($redirectUrl);
-        });
 
         $exceptions->render(function (AuthenticationException $exception, Request $request): ?Response {
             if (! $request->is('api/*')) {

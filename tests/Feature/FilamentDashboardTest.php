@@ -3,6 +3,56 @@
 use App\Enums\FamilyPermission;
 use App\Models\BlindUser;
 use App\Models\User;
+use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Route;
+use Symfony\Component\HttpFoundation\Cookie;
+
+test('Livewire updates preserve the browser session and csrf token', function () {
+    // Exercise CSRF middleware, which normally bypasses verification in tests.
+    $this->app['env'] = 'local';
+    $page = $this->get('/admin/login')->assertOk();
+    $sessionId = session()->getId();
+    $token = session()->token();
+    $document = new DOMDocument;
+    @$document->loadHTML($page->getContent());
+    $xpath = new DOMXPath($document);
+    $snapshot = $xpath->query('//*[@*[name()="wire:snapshot"]]')->item(0)->getAttribute('wire:snapshot');
+    $cookies = collect($page->headers->getCookies())
+        ->mapWithKeys(fn (Cookie $cookie): array => [$cookie->getName() => $cookie->getValue()])
+        ->all();
+
+    $this->withCredentials()->withUnencryptedCookies($cookies)->withHeader('X-Livewire', 'true')
+        ->postJson('/livewire/update', [
+            '_token' => $token,
+            'components' => [['snapshot' => $snapshot, 'updates' => (object) [], 'calls' => []]],
+        ])->assertOk();
+
+    expect(session()->getId())->toBe($sessionId);
+    expect(session()->token())->toBe($token);
+});
+
+test('expired Livewire requests return 419 without redirecting to the dashboard', function () {
+    Route::post('/test/livewire-expired', function (): never {
+        throw new TokenMismatchException;
+    });
+
+    $this->withHeaders([
+        'X-Livewire' => 'true',
+        'Referer' => url('/admin'),
+        'Accept' => 'text/html',
+    ])->post('/test/livewire-expired')
+        ->assertStatus(419)
+        ->assertHeaderMissing('Location');
+});
+
+test('Livewire updates without a csrf token are rejected', function () {
+    $this->app['env'] = 'local';
+
+    $this->withHeader('X-Livewire', 'true')
+        ->postJson('/livewire/update', ['components' => []])
+        ->assertStatus(419)
+        ->assertHeaderMissing('Location');
+});
 
 test('filament login page is available', function () {
     $this->get('/admin/login')

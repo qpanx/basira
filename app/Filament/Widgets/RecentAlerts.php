@@ -11,8 +11,6 @@ use Filament\Widgets\TableWidget as BaseWidget;
 
 class RecentAlerts extends BaseWidget
 {
-    protected static ?string $pollingInterval = '15s';
-
     public function table(Table $table): Table
     {
         $actor = Filament::auth()->user();
@@ -22,7 +20,7 @@ class RecentAlerts extends BaseWidget
             ->query($actor instanceof User
                 ? Alert::query()->visibleTo($actor)->with(['blindUser', 'device'])->latest()
                 : Alert::query()->whereRaw('1 = 0'))
-            ->poll('15s')
+            ->poll(null)
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')->label(__('filament.fields.created_at'))->dateTime()->sortable(),
                 Tables\Columns\TextColumn::make('blindUser.name')->label(__('filament.fields.blind_user')),

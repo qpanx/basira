@@ -14,6 +14,7 @@ use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -40,7 +41,8 @@ class AdminPanelProvider extends PanelProvider
                 MenuItem::make()->label('العربية')->url(fn (): string => route('locale.switch', ['locale' => 'ar']))->icon('heroicon-o-language'),
             ])
             ->databaseNotifications()
-            ->databaseNotificationsPolling('30s')
+            ->databaseNotificationsPolling(null)
+            ->renderHook(PanelsRenderHook::SCRIPTS_BEFORE, fn (): View => view('filament.session-expired'))
             ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString('<script>document.documentElement.dir = '.json_encode(App::getLocale() === 'ar' ? 'rtl' : 'ltr').';</script>'))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
@@ -63,8 +65,9 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
                 SetLocale::class,
-            ], isPersistent: true)
+            ])
             ->authMiddleware([
+                AuthenticateSession::class,
                 Authenticate::class,
                 SetLocale::class,
             ], isPersistent: true);
