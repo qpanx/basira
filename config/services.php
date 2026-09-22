@@ -2,6 +2,38 @@
 
 return [
 
+    'navigation' => [
+        'provider' => env('NAVIGATION_PROVIDER', 'google'),
+    ],
+
+    'osrm' => [
+        'url' => env('OSRM_SERVICE_URL'),
+        'profile' => env('OSRM_PROFILE', 'foot'),
+        'walking_enabled' => (bool) env('OSRM_WALKING_ENABLED', false),
+        'timeout' => (int) env('OSRM_TIMEOUT', 10),
+        'max_snap_distance_meters' => (int) env('OSRM_MAX_SNAP_DISTANCE_METERS', 50),
+    ],
+
+    'vision' => [
+        'url' => env('VISION_SERVICE_URL'),
+        'api_key' => env('VISION_SERVICE_API_KEY'),
+        'timeout' => (int) env('VISION_SERVICE_TIMEOUT', 10),
+        'max_image_kb' => (int) env('VISION_MAX_IMAGE_KB', 5120),
+        'min_confidence' => (float) env('VISION_MIN_CONFIDENCE', 0.5),
+    ],
+
+    'ocr' => [
+        'url' => env('OCR_SERVICE_URL'),
+        'api_key' => env('OCR_SERVICE_API_KEY'),
+        'timeout' => (int) env('OCR_SERVICE_TIMEOUT', 10),
+        'max_image_kb' => (int) env('OCR_MAX_IMAGE_KB', 5120),
+    ],
+
+    'google_maps' => [
+        'api_key' => env('GOOGLE_MAPS_API_KEY'),
+        'timeout' => (int) env('GOOGLE_MAPS_TIMEOUT', 10),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

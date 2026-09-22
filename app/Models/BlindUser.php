@@ -138,6 +138,12 @@ class BlindUser extends Model
         return $this->hasMany(Location::class);
     }
 
+    /** @return HasMany<NavigationSession, $this> */
+    public function navigationSessions(): HasMany
+    {
+        return $this->hasMany(NavigationSession::class);
+    }
+
     /** @return HasMany<Alert, $this> */
     public function alerts(): HasMany
     {

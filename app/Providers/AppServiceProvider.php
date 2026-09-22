@@ -2,10 +2,15 @@
 
 namespace App\Providers;
 
+use App\Contracts\DestinationProvider;
 use App\Contracts\EmergencyGateway;
+use App\Contracts\OCRProvider;
+use App\Contracts\RoutingProvider;
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Services\HttpOCRProvider;
 use App\Services\LogEmergencyGateway;
+use App\Services\NavigationProviders;
 use App\Services\TwilioEmergencyGateway;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -25,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(RoutingProvider::class, fn (Application $app): RoutingProvider => $app->make(NavigationProviders::class)->routing());
+        $this->app->bind(DestinationProvider::class, fn (Application $app): DestinationProvider => $app->make(NavigationProviders::class)->destinations());
+        $this->app->bind(OCRProvider::class, HttpOCRProvider::class);
         $this->app->bind(EmergencyGateway::class, function (Application $app): EmergencyGateway {
             return config('smart-cane.emergency.driver') === 'twilio'
                 ? $app->make(TwilioEmergencyGateway::class)
@@ -73,6 +81,9 @@ class AppServiceProvider extends ServiceProvider
 
     protected function configureDeviceRateLimits(): void
     {
+        foreach (['vision', 'ocr', 'navigation-search', 'navigation-start', 'navigation-update', 'navigation-read'] as $bucket) {
+            RateLimiter::for('device-'.$bucket, fn (Request $request): Limit => $this->deviceLimit($request, $bucket));
+        }
         RateLimiter::for('device-heartbeat', fn (Request $request): Limit => $this->deviceLimit($request, 'heartbeat'));
         RateLimiter::for('device-location', fn (Request $request): Limit => $this->deviceLimit($request, 'location'));
         RateLimiter::for('device-arrival', fn (Request $request): Limit => $this->deviceLimit($request, 'arrival'));

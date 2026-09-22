@@ -21,6 +21,7 @@ class EnsureDeviceToken
 
         if (! $device instanceof Device || ! $device->currentAccessToken() instanceof PersonalAccessToken) {
             return response()->json([
+                'success' => false,
                 'message' => __('api.auth.device_token_required'),
                 'code' => 'device_token_required',
             ], Response::HTTP_UNAUTHORIZED);
@@ -28,6 +29,7 @@ class EnsureDeviceToken
 
         if (! $device->is_enabled) {
             return response()->json([
+                'success' => false,
                 'message' => __('api.auth.device_disabled'),
                 'code' => 'device_disabled',
             ], Response::HTTP_FORBIDDEN);
@@ -35,6 +37,7 @@ class EnsureDeviceToken
 
         if ($device->blind_user_id === null) {
             return response()->json([
+                'success' => false,
                 'message' => __('api.auth.device_unassigned'),
                 'code' => 'device_unassigned',
             ], Response::HTTP_FORBIDDEN);
@@ -42,6 +45,7 @@ class EnsureDeviceToken
 
         if ($device->tokenCant($ability)) {
             return response()->json([
+                'success' => false,
                 'message' => __('api.auth.missing_ability'),
                 'code' => 'missing_token_ability',
             ], Response::HTTP_FORBIDDEN);

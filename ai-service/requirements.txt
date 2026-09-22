@@ -1,0 +1,4 @@
+-r requirements-api.txt
+ultralytics==8.3.203
+paddleocr==3.3.2
+paddlepaddle==3.2.2

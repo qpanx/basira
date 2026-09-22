@@ -7,6 +7,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
@@ -43,6 +44,23 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->respond(function (Response $response, Throwable $exception, Request $request): Response {
+            if ($request->is('api/device/vision/*', 'api/device/ocr/*', 'api/device/navigation/*')
+                && $response instanceof JsonResponse && $response->getStatusCode() >= 400) {
+                $data = $response->getData(true);
+                $response->setData([
+                    ...$data,
+                    'success' => false,
+                    'code' => $data['code'] ?? match ($response->getStatusCode()) {
+                        422 => 'validation_error',
+                        429 => 'rate_limited',
+                        default => 'request_failed',
+                    },
+                ]);
+            }
+
+            return $response;
+        });
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
