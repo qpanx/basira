@@ -13,7 +13,7 @@ $token = $device->createToken('camera-navigation', [
 ])->plainTextToken;
 ```
 
-Existing tokens with explicit abilities need to be reissued with the required new abilities. Wildcard tokens retain their existing behavior. Do not send `device_id`, `blind_user_id`, or navigation `session_id`; identity and the active session come from the token. Stop navigation and revoke old tokens before transferring a cane to another person.
+Existing tokens with explicit abilities need to be reissued with the required new abilities. Wildcard tokens retain their existing behavior. For camera/navigation requests, do not send `device_id`, `blind_user_id`, or navigation `session_id`; identity and the active session come from the token. The Cloud telemetry formats below require a serial-number `device_id` that must match that same authenticated device. Stop navigation and revoke old tokens before transferring a cane to another person.
 
 Use `Accept-Language: ar` or `en`. With no header, the existing middleware uses the device's preferred language. Vision/OCR/search/start also accept `language: ar|en` to select provider output. A navigation session retains its starting language. Provider labels and text are not translated or invented by Laravel. Google and OCR language support depends on the provider and source material.
 
@@ -30,6 +30,42 @@ Use `Accept-Language: ar` or `en`. With no header, the existing middleware uses 
 | POST | `/api/device/navigation/stop` | `device:navigation` | 30, shared with active |
 
 Successful responses contain `success: true` and `data`. Failures contain `success: false`, `code`, and `message`; validation errors also contain `errors`. Dates are UTC ISO 8601. Coordinates use WGS84 decimal degrees. Examples below are synthetic contract examples, not Google search results.
+
+## Cloud telemetry (BASIRA Cloud Data Spec)
+
+The PDF JSON bodies are accepted unchanged through existing POST endpoints:
+
+| PDF payload | HTTP path | Existing token ability |
+| --- | --- | --- |
+| Location (`device_id`, `timestamp`, `lat`, `lng`, `gps_valid`) | `/api/device/location` | `device:location` |
+| Battery (`device_id`, `timestamp`, `voltage`, `percentage`) | `/api/device/heartbeat` | `device:heartbeat` |
+| Status (`device_id`, `timestamp`, `online`) | `/api/device/heartbeat` | `device:heartbeat` |
+| Alerts (`device_id`, `timestamp`, `type`, `severity`, `value`, `lat`, `lng`) | `/api/device/alert` | `device:alert` |
+| SOS (`device_id`, `timestamp`, `type: sos_critical`, `severity: critical`, `lat`, `lng`) | `/api/device/alert` | `device:alert` |
+
+No endpoint was added or renamed. The PDF specifies MQTT topics, not Cloud Functions' HTTP destinations; verify the Terraform destinations against this table before rollout. Do not equate an MQTT topic ending in `/battery`, `/status`, `/alerts`, or `/sos` with an existing HTTP endpoint.
+
+Reuse the existing Device Sanctum bearer token with the listed abilities. No token creation or rotation is needed. Serial numbers are validation inputs, never authentication: mismatches return 422 without writes. Missing/invalid tokens return 401; disabled/unassigned devices and missing abilities remain forbidden. No demonstration-device identity is hardcoded.
+
+Legacy request formats and responses remain supported. Battery-only events do not change firmware or require a firmware field; status-only events do not change battery or create a battery log. `gps_valid: false` returns 200 with `data.ignored: true` and `data.reason: invalid_gps_fix`, without writing location history, moving the map, or evaluating safe zones.
+
+Cloud alert types map to existing enums: `front_obstacle` → `obstacle_front`, `upper_obstacle` → `obstacle_upper`, `pit_detected` → `obstacle_lower`, `water_detected` → `water_hazard`, and `sos_critical` → `sos`. Responses retain these existing enum names. Severities are `info`, `warning`, and `critical`; SOS requires `critical`. Raw sensor values and units are retained. Front/upper readings use cm; pit readings use mm, with rounded cm stored for existing displays; water readings use raw ADC (0–4095) and never populate distance. Voltage is nullable decimal(5,3); sensor values are nullable decimal(12,3).
+
+Cloud timestamps must be UTC ISO 8601 (`Z` or `+00:00`), optionally with up to three fractional digits, and cannot be in the future. Historical events are accepted. Location/battery `recorded_at` and alert `occurred_at` retain event time; location/battery `received_at` and alert `created_at` represent server receipt. The latest status report retains its own event time, receipt time, and `online` value separately from effective device status.
+
+Status updates are serialized per device. Older or equal status timestamps do not reapply; an offline report cannot override activity received at or after its event time. Fresh online/activity reports preserve maintenance mode. Backlogs older than `DEVICE_OFFLINE_AFTER_MINUTES` (default 10) do not revive an offline cane. Keep the existing `devices:mark-offline` scheduled command running for silent devices. Older battery/location reports remain history without replacing the newest readings.
+
+Cloud location, battery, and alert retries derive stable UUIDs from the device, event kind, timestamp, and normalized values and reuse the existing unique indexes and device locks. Same JSON with reordered keys remains a retry; changed values or timestamps represent a new event. With no upstream event ID, two identical events with the same timestamp cannot be distinguished. A retry returns 200 and does not re-notify or refresh connectivity; a new location/alert returns 201. SOS uses the existing events, `SendSosNotifications` job, `sos` queue, and dedicated rate limit. Retry 429 responses after `Retry-After`; keep the original payload and timestamp when retrying.
+
+Deploy through the normal release process, running `php artisan migrate --force` before activating the updated code, then `php artisan optimize` and `php artisan queue:restart`. The additive migration introduces only nullable columns on existing tables; it does not alter tokens or remove records. Its rollback drops the new telemetry columns, so prefer a forward fix after data has been ingested. Existing workers must consume the `sos` queue, and the scheduler must keep running.
+
+Safely test all five exact PDF examples, invalid inputs, token boundaries, retries, delayed messages, and SOS dispatch with:
+
+```bash
+php artisan test --compact tests/Feature/CloudDeviceApiTest.php
+```
+
+These tests use an isolated test database, test-only tokens, notification/queue fakes, and blocked outbound HTTP. For manual checks, send the unchanged PDF JSON to the mapped endpoint in a staging environment with an existing staging token in the Authorization header. Use a current UTC timestamp to test connectivity; the historical PDF timestamp intentionally does not prove the cane is online. Check stored voltage/percentage, location history, sensor units, and effective status, then resend the same payload to check deduplication. Test alerts and SOS through the automated fakes unless the staging environment has deliberately isolated notification recipients and emergency delivery. Do not send a live SOS as a smoke test. Never log or print bearer tokens.
 
 ## Camera → Vision
 

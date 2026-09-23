@@ -89,7 +89,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('device-arrival', fn (Request $request): Limit => $this->deviceLimit($request, 'arrival'));
         RateLimiter::for('device-config', fn (Request $request): Limit => $this->deviceLimit($request, 'config'));
         RateLimiter::for('device-alert', function (Request $request): Limit {
-            $bucket = $request->string('type')->toString() === 'sos' ? 'sos' : 'alert';
+            $bucket = in_array($request->input('type'), ['sos', 'sos_critical'], true) ? 'sos' : 'alert';
 
             return $this->deviceLimit($request, $bucket);
         });

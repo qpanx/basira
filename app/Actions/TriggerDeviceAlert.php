@@ -19,10 +19,10 @@ class TriggerDeviceAlert
     /**
      * @param  array<string, mixed>  $data
      */
-    public function handle(Device $device, array $data): Alert
+    public function handle(Device $device, array $data, bool $fromCloud = false): Alert
     {
-        $alert = DB::transaction(function () use ($device, $data): Alert {
-            $lockedDevice = Device::query()->lockForUpdate()->findOrFail($device->getKey());
+        $alert = DB::transaction(function () use ($device, $data, $fromCloud): Alert {
+            $lockedDevice = Device::query()->whereKey($device->getKey())->lockForUpdate()->firstOrFail();
             $messageId = $data['message_id'] ?? (string) Str::uuid();
             $existingAlert = $lockedDevice->alerts()->where('message_id', $messageId)->first();
 
@@ -36,12 +36,18 @@ class TriggerDeviceAlert
                 'type' => $data['type'],
                 'severity' => $data['severity'],
                 'distance_cm' => $data['distance_cm'] ?? null,
+                'sensor_value' => $data['sensor_value'] ?? null,
+                'sensor_unit' => $data['sensor_unit'] ?? null,
                 'lat' => $data['lat'] ?? null,
                 'lng' => $data['lng'] ?? null,
-                'occurred_at' => isset($data['timestamp']) ? Carbon::parse($data['timestamp']) : now(),
+                'occurred_at' => isset($data['timestamp']) ? Carbon::parse($data['timestamp'])->utc() : now(),
             ]);
 
-            $lockedDevice->update(['last_seen_at' => now()]);
+            if ($fromCloud) {
+                $lockedDevice->recordCloudActivity(Carbon::parse($data['timestamp'])->utc());
+            } else {
+                $lockedDevice->update(['last_seen_at' => now()]);
+            }
 
             return $alert;
         });

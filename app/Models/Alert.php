@@ -12,11 +12,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property AlertType $type
+ * @property AlertSeverity $severity
+ * @property Carbon|null $occurred_at
+ */
 class Alert extends Model
 {
     /** @use HasFactory<AlertFactory> */
     use HasFactory;
+
+    protected $dateFormat = 'Y-m-d H:i:s.v';
 
     /**
      * @var list<string>
@@ -29,6 +37,8 @@ class Alert extends Model
         'type',
         'severity',
         'distance_cm',
+        'sensor_value',
+        'sensor_unit',
         'lat',
         'lng',
         'occurred_at',
@@ -113,6 +123,7 @@ class Alert extends Model
             'type' => AlertType::class,
             'severity' => AlertSeverity::class,
             'distance_cm' => 'integer',
+            'sensor_value' => 'decimal:3',
             'lat' => 'decimal:7',
             'lng' => 'decimal:7',
             'occurred_at' => 'datetime',

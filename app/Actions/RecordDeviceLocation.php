@@ -21,10 +21,10 @@ class RecordDeviceLocation
     /**
      * @param  array<string, mixed>  $data
      */
-    public function handle(Device $device, array $data): Location
+    public function handle(Device $device, array $data, bool $fromCloud = false): Location
     {
-        $result = DB::transaction(function () use ($device, $data): array {
-            $lockedDevice = Device::query()->lockForUpdate()->findOrFail($device->getKey());
+        $result = DB::transaction(function () use ($device, $data, $fromCloud): array {
+            $lockedDevice = Device::query()->whereKey($device->getKey())->lockForUpdate()->firstOrFail();
             $messageId = $data['message_id'] ?? (string) Str::uuid();
             $existingLocation = $lockedDevice->locations()->where('message_id', $messageId)->first();
 
@@ -32,7 +32,7 @@ class RecordDeviceLocation
                 return ['location' => $existingLocation, 'is_newest' => false, 'transitions' => ['entered' => [], 'exited' => []]];
             }
 
-            $recordedAt = Carbon::parse($data['timestamp']);
+            $recordedAt = Carbon::parse($data['timestamp'])->utc();
             $location = $lockedDevice->locations()->create([
                 'blind_user_id' => $lockedDevice->blind_user_id,
                 'message_id' => $messageId,
@@ -46,12 +46,16 @@ class RecordDeviceLocation
                 || $recordedAt->greaterThan($lockedDevice->last_location_recorded_at);
 
             $lockedDevice->update([
-                'last_seen_at' => now(),
+                ...($fromCloud ? [] : ['last_seen_at' => now()]),
                 ...($isNewest ? [
                     'last_location_recorded_at' => $recordedAt,
                     'geofence_evaluated_at' => $recordedAt,
                 ] : []),
             ]);
+
+            if ($fromCloud) {
+                $lockedDevice->recordCloudActivity($recordedAt);
+            }
 
             return [
                 'location' => $location,

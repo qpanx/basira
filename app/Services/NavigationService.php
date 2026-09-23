@@ -143,7 +143,7 @@ class NavigationService
     private function latestLocation(Device $device): Location
     {
         $location = $device->locations()->where('blind_user_id', $device->blind_user_id)
-            ->where('recorded_at', '<=', now())
+            ->where('recorded_at', '<=', now()->format('Y-m-d H:i:s.v'))
             ->orderByDesc('recorded_at')->orderByDesc('id')->first();
         if ($location === null || $location->recorded_at->lessThan(now()->subSeconds(config('smart-cane.navigation.location_max_age_seconds')))
             || $location->accuracy === null || (float) $location->accuracy > (float) config('smart-cane.navigation.max_accuracy_meters')) {

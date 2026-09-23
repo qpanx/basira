@@ -3,6 +3,8 @@
 use App\Http\Controllers\LocaleController;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+use Inertia\Response;
 
 Route::post('/locale', LocaleController::class)->name('locale.update');
 Route::get('/locale/{locale}', function (string $locale): RedirectResponse {
@@ -13,4 +15,11 @@ Route::get('/locale/{locale}', function (string $locale): RedirectResponse {
     return redirect()->back();
 })->name('locale.switch');
 
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', function (): Response {
+    return Inertia::render('welcome', [
+        'copy' => __('landing'),
+        'locale' => app()->getLocale(),
+        'authenticated' => auth()->check(),
+        'year' => now()->year,
+    ]);
+})->name('home');

@@ -15,7 +15,7 @@ class AlertController extends Controller
     {
         /** @var Device $device */
         $device = $request->attributes->get('device');
-        $alert = $triggerAlert->handle($device, $request->validated());
+        $alert = $triggerAlert->handle($device, $request->ingestionData(), $request->isCloudPayload());
 
         return response()->json([
             'message' => __('api.alert.recorded'),

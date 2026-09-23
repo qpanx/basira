@@ -15,7 +15,13 @@ class LocationController extends Controller
     {
         /** @var Device $device */
         $device = $request->attributes->get('device');
-        $location = $recordLocation->handle($device, $request->validated());
+        if ($request->isCloudPayload() && ! $request->boolean('gps_valid')) {
+            return response()->json([
+                'data' => ['ignored' => true, 'reason' => 'invalid_gps_fix'],
+            ]);
+        }
+
+        $location = $recordLocation->handle($device, $request->ingestionData(), $request->isCloudPayload());
 
         return response()->json([
             'message' => __('api.location.recorded'),

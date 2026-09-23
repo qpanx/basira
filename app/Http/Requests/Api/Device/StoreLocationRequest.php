@@ -3,9 +3,8 @@
 namespace App\Http\Requests\Api\Device;
 
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Foundation\Http\FormRequest;
 
-class StoreLocationRequest extends FormRequest
+class StoreLocationRequest extends CloudDeviceRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,6 +21,16 @@ class StoreLocationRequest extends FormRequest
      */
     public function rules(): array
     {
+        if ($this->isCloudPayload()) {
+            return [
+                ...$this->cloudRules(),
+                'lat' => ['required', 'numeric', 'between:-90,90'],
+                'lng' => ['required', 'numeric', 'between:-180,180'],
+                'gps_valid' => ['required', 'boolean'],
+                'accuracy' => ['prohibited'],
+            ];
+        }
+
         return [
             'message_id' => ['nullable', 'uuid'],
             'lat' => ['required', 'numeric', 'between:-90,90'],
@@ -31,6 +40,31 @@ class StoreLocationRequest extends FormRequest
             'device_id' => ['prohibited'],
             'blind_user_id' => ['prohibited'],
             'received_at' => ['prohibited'],
+        ];
+    }
+
+    public function isCloudPayload(): bool
+    {
+        return $this->hasAny(['device_id', 'gps_valid']);
+    }
+
+    /** @return array<string, mixed> */
+    public function ingestionData(): array
+    {
+        if (! $this->isCloudPayload()) {
+            return $this->validated();
+        }
+
+        $values = [
+            'lat' => (float) $this->validated('lat'),
+            'lng' => (float) $this->validated('lng'),
+            'gps_valid' => (bool) $this->validated('gps_valid'),
+        ];
+
+        return [
+            ...$values,
+            'timestamp' => $this->validated('timestamp'),
+            'message_id' => $this->cloudMessageId('location', $values),
         ];
     }
 }

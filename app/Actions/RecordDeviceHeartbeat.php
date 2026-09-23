@@ -15,11 +15,11 @@ class RecordDeviceHeartbeat
     /**
      * @param  array<string, mixed>  $data
      */
-    public function handle(Device $device, array $data): BatteryLog
+    public function handle(Device $device, array $data, bool $fromCloud = false): BatteryLog
     {
-        return DB::transaction(function () use ($device, $data): BatteryLog {
-            $lockedDevice = Device::query()->lockForUpdate()->findOrFail($device->getKey());
-            $recordedAt = isset($data['recorded_at']) ? Carbon::parse($data['recorded_at']) : now();
+        return DB::transaction(function () use ($device, $data, $fromCloud): BatteryLog {
+            $lockedDevice = Device::query()->whereKey($device->getKey())->lockForUpdate()->firstOrFail();
+            $recordedAt = isset($data['recorded_at']) ? Carbon::parse($data['recorded_at'])->utc() : now();
             $messageId = $data['message_id'] ?? (string) Str::uuid();
 
             $batteryLog = $lockedDevice->batteryLogs()->firstOrCreate(
@@ -27,20 +27,34 @@ class RecordDeviceHeartbeat
                 [
                     'blind_user_id' => $lockedDevice->blind_user_id,
                     'battery_level' => $data['battery_level'],
+                    'voltage' => $data['voltage'] ?? null,
                     'power_state' => $data['power_state'] ?? PowerState::Unknown->value,
                     'recorded_at' => $recordedAt,
                     'received_at' => now(),
                 ],
             );
 
-            $lockedDevice->update([
-                'battery_level' => $data['battery_level'],
-                'firmware_version' => $data['firmware_version'],
-                'last_seen_at' => now(),
-                'status' => $lockedDevice->status === DeviceStatus::Maintenance
-                    ? DeviceStatus::Maintenance
-                    : DeviceStatus::Active,
-            ]);
+            if ($fromCloud) {
+                if ($batteryLog->wasRecentlyCreated) {
+                    $latestBatteryLog = $lockedDevice->batteryLogs()->orderByDesc('recorded_at')->orderByDesc('id')->first();
+                    $hasNewerBattery = $latestBatteryLog !== null && $latestBatteryLog->recorded_at->greaterThan($recordedAt);
+
+                    if (! $hasNewerBattery) {
+                        $lockedDevice->update(['battery_level' => $data['battery_level']]);
+                    }
+
+                    $lockedDevice->recordCloudActivity($recordedAt);
+                }
+            } else {
+                $lockedDevice->update([
+                    'battery_level' => $data['battery_level'],
+                    'firmware_version' => $data['firmware_version'],
+                    'last_seen_at' => now(),
+                    'status' => $lockedDevice->status === DeviceStatus::Maintenance
+                        ? DeviceStatus::Maintenance
+                        : DeviceStatus::Active,
+                ]);
+            }
 
             $device->setRawAttributes($lockedDevice->getAttributes(), true)->syncChanges();
 
